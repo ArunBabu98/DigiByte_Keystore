@@ -105,8 +105,15 @@ class DigiByteKeystore {
   }
 
   /// Pushes the encrypted key into a DigiByte transaction
-  Future<Map<String, String>> generateEncryption(String privateKey, int keyNumber,
-      String utxoWif, Map<String, dynamic> utxo) async {
+  Future<Map<String, String>> generateEncryption(
+      String privateKey,
+      int keyNumber,
+      String utxoWif,
+      int adddrType,
+      Map<String, dynamic> utxo) async {
+    if (adddrType != 44 && adddrType != 49 && adddrType != 84) {
+      throw Exception("Invalid Address Type!");
+    }
     await _verifyAvalue(keyNumber);
     List<int> lsbs = _generatelsbs(keyNumber);
     List<String> data = _getOPData(privateKey, lsbs);
@@ -125,7 +132,8 @@ class DigiByteKeystore {
     }
 
     // Inititate transaction to address, 1000h/ch/ah/256
-    var rawTX = await _initiateTransaction(keyNumber, opData, utxoWif, utxo);
+    var rawTX =
+        await _initiateTransaction(keyNumber, opData, utxoWif, adddrType, utxo);
 
     return {"rawTX": rawTX, "opData": opData};
   }
@@ -151,23 +159,64 @@ class DigiByteKeystore {
     return base58.convert(data);
   }
 
+// Get address in the address format provided
+  String _getAddress(String wif, int adddrType) {
+    switch (adddrType) {
+      case 44:
+        return Wallet.fromWIF(wif, digibyte).address!;
+      case 49:
+        final keyPair = ECPair.fromWIF(wif, network: digibyte);
+        return P2SH(
+                data: PaymentData(
+                    redeem: P2WPKH(
+                            data: PaymentData(pubkey: keyPair.publicKey),
+                            network: digibyte)
+                        .data),
+                network: digibyte)
+            .data!
+            .address!;
+      case 84:
+        final keyPair = ECPair.fromWIF(wif, network: digibyte);
+        return P2WPKH(
+                data: PaymentData(pubkey: keyPair.publicKey), network: digibyte)
+            .data!
+            .address!;
+      default:
+        return "";
+    }
+  }
+
   /// Initiates a transaction with the generated OP_RETURN data
-  _initiateTransaction(int aVal, String opData, String utxoWif,
+  _initiateTransaction(int aVal, String opData, String utxoWif, int adddrType,
       Map<String, dynamic> utxo) async {
     HDWallet derived = mainWallet.derivePath("1000'/$coin'/$aVal'/256");
-    String toAddress = derived.address!;
-    String fromAddress = Wallet.fromWIF(utxoWif, digibyte).address!;
+    String toAddress = _getAddress(derived.wif!, adddrType);
+    String fromAddress = _getAddress(utxoWif, adddrType);
     int txValue = 650;
     int fee = 10000;
     UtxoModel model = UtxoModel.fromJson(utxo);
 
-    final utxokeybag = ECPair.fromWIF(utxoWif, network: digibyte);
-
-    // transaction building
+    // Initialize the transaction builder
     TransactionBuilder txb =
         TransactionBuilder(network: digibyte, maximumFeeRate: 100000);
     txb.setVersion(1);
-    txb.addInput(model.txid, model.vout);
+    // Add input to the transaction based on address type
+    switch (adddrType) {
+      case 44:
+      case 49:
+        txb.addInput(model.txid, model.vout);
+        break;
+      case 84:
+        ECPair keypair = ECPair.fromWIF(utxoWif, network: digibyte);
+        var payData = P2WPKH(
+                data: PaymentData(pubkey: keypair.publicKey), network: digibyte)
+            .data;
+        txb.addInput(model.txid, model.vout, null, payData!.output);
+        break;
+      default:
+        throw ArgumentError('Unsupported address type: $adddrType');
+    }
+
     txb.addOutput(toAddress, txValue);
 
     final scriptPubKey = sc.compile([OPS['OP_RETURN'], HEX.decode(opData)]);
@@ -177,7 +226,30 @@ class DigiByteKeystore {
     if (change > 0) {
       txb.addOutput(fromAddress, change);
     }
-    txb.sign(vin: 0, keyPair: utxokeybag);
+
+    // Sign the transaction based on address type
+    switch (adddrType) {
+      case 44:
+        txb.sign(vin: 0, keyPair: ECPair.fromWIF(utxoWif, network: digibyte));
+        break;
+      case 49:
+        final keypair = ECPair.fromWIF(utxoWif, network: digibyte);
+        var payData = P2WPKH(
+                data: PaymentData(pubkey: keypair.publicKey), network: digibyte)
+            .data;
+        txb.sign(
+            vin: 0,
+            keyPair: keypair,
+            redeemScript: payData!.output,
+            witnessValue: int.parse(model.value));
+        break;
+      case 84:
+        txb.sign(
+            vin: 0,
+            keyPair: ECPair.fromWIF(utxoWif, network: digibyte),
+            witnessValue: int.parse(model.value));
+        break;
+    }
     return txb.build().toHex();
   }
 
@@ -205,7 +277,7 @@ class DigiByteKeystore {
   }
 
   /// Decrypts the OP_RETURN data to retrieve the private key in wif format
-  String decrypt(String opData, int keyNumber) {
+  String decrypt(String opData, int keyNumber, {bool wif = false}) {
     const prefix = '6a20';
     List<int> lsbs = _generatelsbs(keyNumber);
     Uint8List lsbBytes = Uint8List.fromList(lsbs);
@@ -220,6 +292,10 @@ class DigiByteKeystore {
     }
     String getback = HEX.encode(Uint8List.fromList(originalKeyBytes));
     debug.log(getback);
-    return _toWif(getback);
+    if (wif) {
+      return _toWif(getback);
+    } else {
+      return getback;
+    }
   }
 }
