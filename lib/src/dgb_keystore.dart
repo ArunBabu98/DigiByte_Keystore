@@ -116,11 +116,11 @@ class DigiByteKeystore {
   }
 
   /// Verifies if the key index 'a' is in use
-  Future<bool> _verifyAvalue(int a, int addrType) async {
+  Future<bool> _verifyAvalue(int a) async {
     List<String> addrs = [];
     for (int i = 0; i <= a + 1; i++) {
       HDWallet derived = mainWallet.derivePath("1000'/$coin'/$i'/256");
-      addrs.add(_getAddress(derived.wif!, addrType));
+      addrs.add(derived.address!);
     }
     debug.log("Verify address list -> $addrs");
     List<String> encodedKeys = await _getEncodedKeys(addrs);
@@ -141,7 +141,7 @@ class DigiByteKeystore {
     if (adddrType != 44 && adddrType != 49 && adddrType != 84) {
       throw Exception("Invalid Address Type!");
     }
-    await _verifyAvalue(keyNumber, adddrType);
+    await _verifyAvalue(keyNumber);
     List<int> lsbs = _generatelsbs(keyNumber);
     List<String> data = _getOPData(privateKey, lsbs);
 
@@ -190,7 +190,7 @@ class DigiByteKeystore {
   _initiateTransaction(int aVal, String opData, String utxoWif, int adddrType,
       Map<String, dynamic> utxo) async {
     HDWallet derived = mainWallet.derivePath("1000'/$coin'/$aVal'/256");
-    String toAddress = _getAddress(derived.wif!, adddrType);
+    String toAddress = derived.address!;
     String fromAddress = _getAddress(utxoWif, adddrType);
     debug.log("To Address -> $toAddress");
     debug.log("From Address -> $fromAddress");
