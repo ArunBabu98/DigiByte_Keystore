@@ -192,6 +192,8 @@ class DigiByteKeystore {
     HDWallet derived = mainWallet.derivePath("1000'/$coin'/$aVal'/256");
     String toAddress = _getAddress(derived.wif!, adddrType);
     String fromAddress = _getAddress(utxoWif, adddrType);
+    debug.log("To Address -> $toAddress");
+    debug.log("From Address -> $fromAddress");
     int txValue = 650;
     int fee = 10000;
     UtxoModel model = UtxoModel.fromJson(utxo);
