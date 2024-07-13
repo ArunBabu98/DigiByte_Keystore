@@ -35,7 +35,7 @@ class DigiByteKeystore {
     List<int> lsbs = [];
     for (int b = 0; b <= 255; b++) {
       HDWallet derived = mainWallet.derivePath("1000'/$coin'/$aVal'/$b");
-      debug.log("Address $b -> ${derived.address}");
+      debug.log("Key $b -> ${derived.privKey}");
       int lsd = int.parse(leastSignificantDigit(derived.privKey!));
       lsbs.add(lsd);
     }
@@ -88,12 +88,39 @@ class DigiByteKeystore {
     }
   }
 
+  // Get address in the address format provided
+  String _getAddress(String wif, int adddrType) {
+    switch (adddrType) {
+      case 44:
+        return Wallet.fromWIF(wif, digibyte).address!;
+      case 49:
+        final keyPair = ECPair.fromWIF(wif, network: digibyte);
+        return P2SH(
+                data: PaymentData(
+                    redeem: P2WPKH(
+                            data: PaymentData(pubkey: keyPair.publicKey),
+                            network: digibyte)
+                        .data),
+                network: digibyte)
+            .data!
+            .address!;
+      case 84:
+        final keyPair = ECPair.fromWIF(wif, network: digibyte);
+        return P2WPKH(
+                data: PaymentData(pubkey: keyPair.publicKey), network: digibyte)
+            .data!
+            .address!;
+      default:
+        throw Exception("Invalid address type!");
+    }
+  }
+
   /// Verifies if the key index 'a' is in use
-  Future<bool> _verifyAvalue(int a) async {
+  Future<bool> _verifyAvalue(int a, int addrType) async {
     List<String> addrs = [];
     for (int i = 0; i <= a + 1; i++) {
       HDWallet derived = mainWallet.derivePath("1000'/$coin'/$i'/256");
-      addrs.add(derived.address!);
+      addrs.add(_getAddress(derived.wif!, addrType));
     }
     debug.log("Verify address list -> $addrs");
     List<String> encodedKeys = await _getEncodedKeys(addrs);
@@ -114,7 +141,7 @@ class DigiByteKeystore {
     if (adddrType != 44 && adddrType != 49 && adddrType != 84) {
       throw Exception("Invalid Address Type!");
     }
-    await _verifyAvalue(keyNumber);
+    await _verifyAvalue(keyNumber, adddrType);
     List<int> lsbs = _generatelsbs(keyNumber);
     List<String> data = _getOPData(privateKey, lsbs);
 
@@ -157,33 +184,6 @@ class DigiByteKeystore {
 
     var base58 = Base58Encoder(Base58CheckCodec.BITCOIN_ALPHABET);
     return base58.convert(data);
-  }
-
-// Get address in the address format provided
-  String _getAddress(String wif, int adddrType) {
-    switch (adddrType) {
-      case 44:
-        return Wallet.fromWIF(wif, digibyte).address!;
-      case 49:
-        final keyPair = ECPair.fromWIF(wif, network: digibyte);
-        return P2SH(
-                data: PaymentData(
-                    redeem: P2WPKH(
-                            data: PaymentData(pubkey: keyPair.publicKey),
-                            network: digibyte)
-                        .data),
-                network: digibyte)
-            .data!
-            .address!;
-      case 84:
-        final keyPair = ECPair.fromWIF(wif, network: digibyte);
-        return P2WPKH(
-                data: PaymentData(pubkey: keyPair.publicKey), network: digibyte)
-            .data!
-            .address!;
-      default:
-        return "";
-    }
   }
 
   /// Initiates a transaction with the generated OP_RETURN data
