@@ -1,0 +1,23 @@
+name: digibyte_keystore
+description: DigiByteKeyStore is a Dart library designed to provide secure encryption and storage of private keys within the op_return field of DigiByte transactions. This library simplifies the process of safeguarding your private keys by leveraging the robust security of the DigiByte blockchain.
+version: 1.0.0
+publish_to: none
+# repository: https://github.com/my_org/my_repo
+
+environment:
+  sdk: ^3.4.1
+
+# Add regular dependencies here.
+dependencies:
+  http: ^1.1.0
+  hex: ^0.2.0
+  base58check: ^2.0.0
+  crypto: ^3.0.3
+  bitcoin_flutter:
+    git:
+      url: https://github.com/ArunBabu98/bitcoin_flutter
+      ref: dart3
+
+dev_dependencies:
+  lints: ^3.0.0
+  test: ^1.24.0
