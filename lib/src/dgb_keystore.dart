@@ -160,7 +160,8 @@ class DigiByteKeystore {
     }
     await _verifyAvalue(keyNumber);
     List<int> lsbs = _generatelsbs(keyNumber);
-    List<String> data = _getOPData(privateKey, lsbs, adddrType, header);
+    List<String> data =
+        _getOPData(privateKey, lsbs, addrHeaderType[adddrType]!, header);
 
     String opData = data[1];
 
@@ -177,8 +178,8 @@ class DigiByteKeystore {
     }
 
     // Inititate transaction to address, 1000h/ch/ah/256
-    var rawTX = await _initiateTransaction(
-        keyNumber, opData, utxoWif, addrHeaderType[adddrType]!, utxo);
+    var rawTX =
+        await _initiateTransaction(keyNumber, opData, utxoWif, adddrType, utxo);
 
     return {"rawTX": rawTX, "opData": opData};
   }
