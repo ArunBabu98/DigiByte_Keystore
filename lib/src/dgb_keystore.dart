@@ -89,6 +89,9 @@ class DigiByteKeystore {
     int headerByte = int.parse(opData.substring(0, 2), radix: 16);
     int standardHeader = headerByte >> 3;
     int addressType = headerByte & 0x07;
+    debug.log("Header Byte -> $headerByte");
+    debug.log("Standard header -> $standardHeader");
+    debug.log("Address Type -> $addressType");
     String xoredKeyHex = opData.substring(2);
     Uint8List lsbBytes = Uint8List.fromList(lsbs);
     List<int> xorBytes = HEX.decode(xoredKeyHex);
