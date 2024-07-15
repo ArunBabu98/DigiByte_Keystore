@@ -33,7 +33,7 @@ class DigiByteKeystore {
   /// Generates the least significant bytes for the given key index
   List<int> _generatelsbs(int aVal) {
     List<int> lsbs = [];
-    for (int b = 0; b <= 255; b++) {
+    for (int b = 1; b <= 256; b++) {
       HDWallet derived = mainWallet.derivePath("1000'/$coin'/$aVal'/$b");
       debug.log("Key $b -> ${derived.privKey}");
       int lsd = int.parse(leastSignificantDigit(derived.privKey!));
@@ -43,7 +43,8 @@ class DigiByteKeystore {
   }
 
   /// Extracts and XORs the key with the least significant bytes
-  List<String> _getOPData(String key, List<int> lsbs) {
+  List<String> _getOPData(
+      String key, List<int> lsbs, int addressType, int standardHeader) {
     Base58CheckCodec base58codec = Base58CheckCodec.bitcoin();
     try {
       Base58CheckPayload payload = base58codec.decode(key);
@@ -57,23 +58,40 @@ class DigiByteKeystore {
         pkey = HEX.encode(payload.payload);
       }
       String xoredKey = xorWithLsb(pkey, lsbs);
-      return [pkey, xoredKey];
+      // Create the header byte
+      int headerByte = (standardHeader << 3) | (addressType & 0x07);
+      String opData = HEX.encode([headerByte]) + xoredKey;
+      if (opData.length / 2 > 80) {
+        // Check if the opData length is within 80 bytes
+        throw Exception("OP_RETURN data exceeds 80 bytes");
+      }
+      return [pkey, opData];
     } catch (err) {
       debug.log("Error -> $err");
       String xoredKey = xorWithLsb(key, lsbs);
-      return [key, xoredKey];
+      // Create the header byte
+      int headerByte = (standardHeader << 3) | (addressType & 0x07);
+      String opData = HEX.encode([headerByte]) + xoredKey;
+      if (opData.length / 2 > 80) {
+        // Check if the opData length is within 80 bytes
+        throw Exception("OP_RETURN data exceeds 80 bytes");
+      }
+      return [key, opData];
     }
   }
 
   /// Recovers the original key from the XORed data and least significant bytes
-  String _recoverKey(String opData, List<int> lsbs) {
+  List _recoverKey(String opData, List<int> lsbs) {
+    int headerByte = int.parse(opData.substring(0, 2), radix: 16);
+    int addressType = headerByte & 0x07;
+    String xoredKeyHex = opData.substring(2);
     Uint8List lsbBytes = Uint8List.fromList(lsbs);
-    List<int> xorBytes = HEX.decode(opData);
+    List<int> xorBytes = HEX.decode(xoredKeyHex);
     List<int> originalKeyBytes = [];
     for (int i = 0; i < xorBytes.length; i++) {
       originalKeyBytes.add(xorBytes[i] ^ lsbBytes[i]);
     }
-    return HEX.encode(Uint8List.fromList(originalKeyBytes));
+    return [addressType, HEX.encode(Uint8List.fromList(originalKeyBytes))];
   }
 
   /// Retrieves encoded keys from addresses
@@ -119,7 +137,7 @@ class DigiByteKeystore {
   Future<bool> _verifyAvalue(int a) async {
     List<String> addrs = [];
     for (int i = 0; i <= a + 1; i++) {
-      HDWallet derived = mainWallet.derivePath("1000'/$coin'/$i'/256");
+      HDWallet derived = mainWallet.derivePath("1000'/$coin'/$i'/0");
       addrs.add(derived.address!);
     }
     debug.log("Verify address list -> $addrs");
@@ -132,18 +150,15 @@ class DigiByteKeystore {
   }
 
   /// Pushes the encrypted key into a DigiByte transaction
-  Future<Map<String, String>> generateEncryption(
-      String privateKey,
-      int keyNumber,
-      String utxoWif,
-      int adddrType,
-      Map<String, dynamic> utxo) async {
+  Future<Map<String, String>> generateEncryption(String privateKey,
+      int keyNumber, String utxoWif, int adddrType, Map<String, dynamic> utxo,
+      {int header = 0xB}) async {
     if (adddrType != 44 && adddrType != 49 && adddrType != 84) {
       throw Exception("Invalid Address Type!");
     }
     await _verifyAvalue(keyNumber);
     List<int> lsbs = _generatelsbs(keyNumber);
-    List<String> data = _getOPData(privateKey, lsbs);
+    List<String> data = _getOPData(privateKey, lsbs, adddrType, header);
 
     String opData = data[1];
 
@@ -151,7 +166,8 @@ class DigiByteKeystore {
 
     debug.log("OP DATA -> $opData");
 
-    String getBack = _recoverKey(opData, lsbs);
+    List res = _recoverKey(opData, lsbs);
+    String getBack = res[1];
     debug.log("getBack -> $getBack");
 
     if (getBack != pKey) {
@@ -263,7 +279,7 @@ class DigiByteKeystore {
     List<String> finalEncoded = [];
     while (true) {
       for (int i = pos; i < pos + batchSize; i++) {
-        HDWallet derived = mainWallet.derivePath("1000'/$coin'/$i'/256");
+        HDWallet derived = mainWallet.derivePath("1000'/$coin'/$i'/0");
         addrList.add(derived.address!);
       }
       debug.log("Verify address list -> $addrList");
@@ -279,25 +295,19 @@ class DigiByteKeystore {
   }
 
   /// Decrypts the OP_RETURN data to retrieve the private key in wif format
-  String decrypt(String opData, int keyNumber, {bool wif = false}) {
+  Map decrypt(String data, int keyNumber, {bool wif = false}) {
     const prefix = '6a20';
+    String opData =
+        data.startsWith(prefix) ? data.substring(prefix.length) : data;
     List<int> lsbs = _generatelsbs(keyNumber);
-    Uint8List lsbBytes = Uint8List.fromList(lsbs);
-
-    List<int> xorBytes = opData.startsWith(prefix)
-        ? HEX.decode(opData.substring(prefix.length))
-        : HEX.decode(opData);
-
-    List<int> originalKeyBytes = [];
-    for (int i = 0; i < xorBytes.length; i++) {
-      originalKeyBytes.add(xorBytes[i] ^ lsbBytes[i]);
-    }
-    String getback = HEX.encode(Uint8List.fromList(originalKeyBytes));
+    List res = _recoverKey(opData, lsbs);
+    final addrType = res[0];
+    final getback = res[1];
     debug.log(getback);
     if (wif) {
-      return _toWif(getback);
+      return {"key": _toWif(getback), "addressType": addrType};
     } else {
-      return getback;
+      return {"key": getback, "addressType": addrType};
     }
   }
 }
