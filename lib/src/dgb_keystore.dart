@@ -87,6 +87,7 @@ class DigiByteKeystore {
   /// Recovers the original key from the XORed data and least significant bytes
   List _recoverKey(String opData, List<int> lsbs) {
     int headerByte = int.parse(opData.substring(0, 2), radix: 16);
+    int standardHeader = headerByte >> 3;
     int addressType = headerByte & 0x07;
     String xoredKeyHex = opData.substring(2);
     Uint8List lsbBytes = Uint8List.fromList(lsbs);
@@ -96,7 +97,7 @@ class DigiByteKeystore {
       originalKeyBytes.add(xorBytes[i] ^ lsbBytes[i]);
     }
     return [
-      headerByte,
+      standardHeader,
       addressType,
       HEX.encode(Uint8List.fromList(originalKeyBytes))
     ];
