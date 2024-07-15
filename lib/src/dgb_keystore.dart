@@ -220,7 +220,7 @@ class DigiByteKeystore {
   /// Initiates a transaction with the generated OP_RETURN data
   _initiateTransaction(int aVal, String opData, String utxoWif, int adddrType,
       Map<String, dynamic> utxo) async {
-    HDWallet derived = mainWallet.derivePath("1000'/$coin'/$aVal'/256");
+    HDWallet derived = mainWallet.derivePath("1000'/$coin'/$aVal'/0");
     String toAddress = derived.address!;
     String fromAddress = _getAddress(utxoWif, adddrType);
     debug.log("To Address -> $toAddress");
