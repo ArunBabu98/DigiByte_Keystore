@@ -174,7 +174,7 @@ class DigiByteKeystore {
     debug.log("OP DATA -> $opData");
 
     List res = _recoverKey(opData, lsbs);
-    String getBack = res[1];
+    String getBack = res[2];
     debug.log("getBack -> $getBack");
 
     if (getBack != pKey) {
