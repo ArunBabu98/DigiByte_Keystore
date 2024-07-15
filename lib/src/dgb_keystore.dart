@@ -299,9 +299,7 @@ class DigiByteKeystore {
 
   /// Decrypts the OP_RETURN data to retrieve the private key in wif format
   Map decrypt(String data, int keyNumber, {bool wif = false}) {
-    const prefix = '6a20';
-    String opData =
-        data.startsWith(prefix) ? data.substring(prefix.length) : data;
+    String opData = data.startsWith('6a') ? data.substring(4) : data;
     List<int> lsbs = _generatelsbs(keyNumber);
     List res = _recoverKey(opData, lsbs);
     final addrType = res[0];
