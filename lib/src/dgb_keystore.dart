@@ -21,7 +21,7 @@ class DigiByteKeystore {
   late Debug debug;
   late String digiassetNode;
 
-  Map<int, int> addrHeaderType = {44: 0, 49: 1, 84: 2};
+  Map<int, int> addrHeaderType = {44: 0x0, 49: 0x1, 84: 0x2};
 
   /// Initializes the keystore from a seed
   DigiByteKeystore.fromSeed(String digiassetcore, String seed, int coinValue,
@@ -62,6 +62,7 @@ class DigiByteKeystore {
       String xoredKey = xorWithLsb(pkey, lsbs);
       // Create the header byte
       int headerByte = (standardHeader << 3) | (addressType & 0x07);
+      debug.log("Header byte-> $headerByte");
       String opData = HEX.encode([headerByte]) + xoredKey;
       if (opData.length / 2 > 80) {
         // Check if the opData length is within 80 bytes
@@ -73,6 +74,7 @@ class DigiByteKeystore {
       String xoredKey = xorWithLsb(key, lsbs);
       // Create the header byte
       int headerByte = (standardHeader << 3) | (addressType & 0x07);
+      debug.log("Header byte-> $headerByte");
       String opData = HEX.encode([headerByte]) + xoredKey;
       if (opData.length / 2 > 80) {
         // Check if the opData length is within 80 bytes
