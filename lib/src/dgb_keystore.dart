@@ -162,16 +162,18 @@ class DigiByteKeystore {
   }
 
   /// Pushes the encrypted key into a DigiByte transaction
+  /// [adddrType] is the address type (legacy-44, segwit-49, bech-84) of utxo
+  /// [keyAddrType] is the address type (legacy-44, segwit-49, bech-84) of privateKey
   Future<Map<String, String>> generateEncryption(String privateKey,
       int keyNumber, String utxoWif, int adddrType, Map<String, dynamic> utxo,
-      {int header = 0xB}) async {
+      {int header = 0xB, int keyAddrType = 0}) async {
     if (adddrType != 44 && adddrType != 49 && adddrType != 84) {
       throw Exception("Invalid Address Type!");
     }
     await _verifyAvalue(keyNumber);
     List<int> lsbs = _generatelsbs(keyNumber);
     List<String> data =
-        _getOPData(privateKey, lsbs, addrHeaderType[adddrType]!, header);
+        _getOPData(privateKey, lsbs, addrHeaderType[keyAddrType]!, header);
 
     String opData = data[1];
 
