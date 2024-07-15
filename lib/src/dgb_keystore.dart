@@ -93,7 +93,11 @@ class DigiByteKeystore {
     for (int i = 0; i < xorBytes.length; i++) {
       originalKeyBytes.add(xorBytes[i] ^ lsbBytes[i]);
     }
-    return [addressType, HEX.encode(Uint8List.fromList(originalKeyBytes))];
+    return [
+      headerByte,
+      addressType,
+      HEX.encode(Uint8List.fromList(originalKeyBytes))
+    ];
   }
 
   /// Retrieves encoded keys from addresses
@@ -297,18 +301,24 @@ class DigiByteKeystore {
     return finalEncoded;
   }
 
+//
   /// Decrypts the OP_RETURN data to retrieve the private key in wif format
   Map decrypt(String data, int keyNumber, {bool wif = false}) {
     String opData = data.startsWith('6a') ? data.substring(4) : data;
     List<int> lsbs = _generatelsbs(keyNumber);
     List res = _recoverKey(opData, lsbs);
-    final addrType = res[0];
-    final getback = res[1];
+    final header = res[0];
+    final addrType = res[1];
+    final getback = res[2];
     debug.log(getback);
     if (wif) {
-      return {"key": _toWif(getback), "addressType": addrType};
+      return {
+        "header": header,
+        "key": _toWif(getback),
+        "addressType": addrType
+      };
     } else {
-      return {"key": getback, "addressType": addrType};
+      return {"header": header, "key": getback, "addressType": addrType};
     }
   }
 }
